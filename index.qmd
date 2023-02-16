@@ -1,76 +1,262 @@
 ---
 title: "Weekly Summary Template"
-author: "Author Name"
+author: "Advait Ashtikar"
 title-block-banner: true
 title-block-style: default
 toc: true
-format: html
-# format: pdf
+# format: html
+format: pdf
 ---
 
----
+------------------------------------------------------------------------
 
-## Tuesday, Jan 17
+## Tuesday, Feb 14
 
-::: {.callout-important}
+::: callout-important
 ## TIL
 
-Include a _very brief_ summary of what you learnt in this class here. 
+Include a *very brief* summary of what you learnt in this class here.
 
 Today, I learnt the following concepts in class:
 
-1. Item 1
-1. Item 2
-1. Item 3
+1.  Multicollinearity
+2.  Variable Selection
+3.  Shrinkage Estimators
 :::
 
-Provide more concrete details here. You can also use footenotes[^footnote] if you like
+## Loading Libraries
 
-```{R results='hide'}
-#| output: false
+```{r}
+library(tidyverse)
+library(ISLR2)
 library(dplyr)
+library(readr)
 library(purrr)
+library(glmnet)
+library(caret)
+library(car)
+library(corrplot)
 ```
 
+In this class, we learnt about variable selection. For this, we will use **Boston housing dataset** which is described here:
 
-For example: 
-in class we learnt we learnt about the `map` function from the `purrr` package. 
+```{r}
+library(ISLR2)
+attach(Boston)
 
-
-```{R results='hide', fig.width=7, fig.height=7}
-par(mfrow=c(3, 3), mar=c(3.5, 3.5, 2, 1), mgp=c(2.4, 0.8, 0))
-map(1:9, function(i)rnorm(1000) %>% hist(., main=i, col=i))
+df <- Boston
+head(df)
 ```
 
+### Explanation of the Variables
 
+The original data are 506 observations on 14 variables, `medv` being the target variable:
 
-## Thursday, Jan 19
+-   `crim` per capita crime rate by town
 
+-   `zn` proportion of residential land zoned for lots over 25,000 sq.ft
 
+-   `indus` proportion of non-retail business acres per town
 
-::: {.callout-important}
+-   `chas` Charles River dummy variable ( = 1 if tract bounds river; 0 otherwise)
+
+-   `nox` nitric oxides concentration (parts per 10 million)
+
+-   `rm` average number of rooms per dwelling
+
+-   `age` proportion of owner-occupied units built prior to 1940
+
+-   `dis` weighted distances to five Boston employment centres
+
+-   `rad` index of accessibility to radial highways
+
+-   `tax` full - value property - tax rate per USD 10,000
+
+-   `ptratio` pupil - teacher ratio by town
+
+-   `lstat` percentage of lower status of the population
+
+-   `medv` median value of owner - occupied homes is USD 1000's
+
+### Exploratory Data Analysis:
+
+Histogram:
+
+```{r}
+df %>%
+  keep(is.numeric) %>%
+  gather() %>%
+  ggplot(aes(value)) +
+  geom_histogram() +
+  facet_wrap(~ key, scales = "free")
+```
+
+Boxplot:
+
+```{r}
+df %>%
+  keep(is.numeric) %>%
+  gather() %>%
+  ggplot(aes(y = value)) +
+  geom_boxplot() +
+  facet_wrap(~ key, scales = "free")
+```
+
+Scatterplot: Used to get a better understanding of the data
+
+```{r}
+df %>%
+  select(-chas) %>%
+  gather(key, val, -medv) %>%
+  ggplot(aes(x = val, y = medv)) +
+  geom_point(alpha = 0.1) +
+  stat_smooth(formula = y ~ x, method = "lm") +
+  facet_wrap(~ key, scales = "free")
+```
+
+## Regression Model
+
+We begin by creating a regression model to predict `medv`
+
+```{r}
+full_model <- lm(medv ~ ., df)
+summary(full_model)
+```
+
+```{r}
+broom::tidy(full_model)
+```
+
+We can see that most of the variables are significant. However, notably
+
+> `age` and `indus` are not significant predictors of `medv`
+
+Is this true?
+
+#### Plot and Regression Modelfor `age`
+
+```{r}
+plot(medv ~ age, df)
+abline(lm(medv ~ age), col = "red")
+```
+
+```{r}
+model_age <- lm(medv ~ age, df)
+summary(model_age)
+```
+
+#### Plot and Regression Model for `indus` 
+
+```{r}
+plot(medv ~ indus, df)
+abline(lm(medv ~ indus), col = "red")
+```
+
+```{r}
+model_indus <- lm(medv ~ indus, df)
+summary(model_indus)
+```
+
+## Correlation Table
+
+```{r}
+R <- df %>%
+  keep(is.numeric) %>%
+  cor()
+R
+```
+
+In a correlation table, we are selecting all the numeric values, where every single value is telling what the correlation with every other variable in data frame.
+
+**Q.** What is an admissible correlation value?
+
+> An admissible correlation value lies between **-1** and **1**.
+
+A good way to visualize correlation is using `corrplot()`
+
+```{r}
+library(corrplot)
+corrplot(R, type = "upper", order = "hclust")
+```
+
+> -   From the plot we can see that, variables `indus` and `age` are fairly negatively correlated to the `medv` variable
+>
+> -   We can also see that, except `chas` variable, every other variable has some correlation with the other variables
+
+```{r}
+new_cols <- colnames(df)[-c(5, 13)]
+model <- lm(medv ~., df %>%
+              select(-c(indus, nox, dis)))
+summary(model)
+```
+
+## Variance Inflation Factors
+
+The **variance inflation factor (VIF)** is the ratio of the variance of estimating some parameter in a model that includes multiple other terms (parameters) by the variance of a model constructed using only one term.
+
+If the standard error increases, then the significance of the variable decreases.
+
+```{r}
+library(car)
+vif_model <- lm(medv ~ ., df)
+vif(vif_model) %>%
+  knitr::kable()
+```
+
+A high inflation factor is any factor that is greater than **2**.
+
+## Stepwise Regression
+
+The process of selecting variables that are relatively more important than the other variables is known as **stepwise regression**.
+
+```{r}
+null_model <- lm(medv ~ 1, df)
+full_model <- lm(medv ~ ., df)
+```
+
+The `null_model` does not contain any variable in a data frame.
+
+The `full_model` contains all the variables in a data frame.
+
+```{r}
+library(caret)
+forward_model <- step(null_model,
+                      direction = "forward",
+                      scope = formula(full_model))
+summary(forward_model)
+```
+
+> $AIC$ is like a replacement for $R^2$
+>
+> Unlike \$R\^2\$, where a higher value is better, we prefer to have a low $AIC$ value
+>
+> Based on `lstat` is the best model, as it has the lowest value
+
+**Forward Selection:** In this form of stepwise regression we keep building our model from 0 (or a low value), and add variables, until we reach a stage where our $AIC$ ends to be high.
+
+```{r}
+backward_model <- step(full_model,
+                       direction = "backward",
+                       scope = formula(full_model))
+summary(backward_model)
+```
+
+Another way to do the same, is using **Backward Selection**. In this we start with the `full_model`, and start removing variable, until we see a decrease in the $AIC$ value. At this point, if we remove any more variables, the $AIC$ value would increase.
+
+> In this case, both **forward** and **backward** models have given the same result. This may not always be the case.
+>
+> -   Another option for the `direction` in the `step()` function is `both` this is a hybrid of both **forward** and **backward** selection.
+
+## Thursday, Feb 16
+
+::: callout-important
 ## TIL
 
-Include a _very brief_ summary of what you learnt in this class here. 
+Include a *very brief* summary of what you learnt in this class here.
 
 Today, I learnt the following concepts in class:
 
-1. Item 1
-1. Item 2
-1. Item 3
+1.  Item 1
+2.  Item 2
+3.  Item 3
 :::
-
-Provide more concrete details here, e.g., 
-
-In class we learnt how to use the `map` function to create multiple regression diagnostic plots
-
-```{R results='hide', fig.height=4}
-par(mfcol=c(2, 3), mar=c(3.5, 3.5, 2, 1), mgp=c(2.4, 0.8, 0))
-mtcars %>%
-  split(.$cyl) %>%
-  map(~ lm(mpg ~ wt, data = .x)) %>%
-  map(function(x)plot(x, which=c(1, 2)))
-```
-
-
-[^footnote]: You can include some footnotes here
