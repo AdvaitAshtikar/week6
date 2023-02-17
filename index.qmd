@@ -145,7 +145,7 @@ model_age <- lm(medv ~ age, df)
 summary(model_age)
 ```
 
-#### Plot and Regression Model for `indus` 
+#### Plot and Regression Model for `indus`
 
 ```{r}
 plot(medv ~ indus, df)
@@ -246,17 +246,3 @@ Another way to do the same, is using **Backward Selection**. In this we start wi
 > In this case, both **forward** and **backward** models have given the same result. This may not always be the case.
 >
 > -   Another option for the `direction` in the `step()` function is `both` this is a hybrid of both **forward** and **backward** selection.
-
-## Thursday, Feb 16
-
-::: callout-important
-## TIL
-
-Include a *very brief* summary of what you learnt in this class here.
-
-Today, I learnt the following concepts in class:
-
-1.  Item 1
-2.  Item 2
-3.  Item 3
-:::
